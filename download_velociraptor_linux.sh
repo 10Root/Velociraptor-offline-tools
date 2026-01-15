@@ -3,7 +3,7 @@
 # Author: Yaniv Radunsky @ 10Root
 
 # Default destination folder
-DEFAULT_DEST="/home/tenroot/setup_platform/workdir/velociraptor/tmp"
+DEFAULT_DEST="/home/tenroot/setup_platform/workdir/tmp"
 DEST_FOLDER="${1:-$DEFAULT_DEST}"
 
 # Create VelociraptorPlus subfolder
