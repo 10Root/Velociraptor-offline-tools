@@ -147,6 +147,7 @@ get_file "$DOWNLOAD_FOLDER" "https://download.ericzimmermanstools.com/SBECmd.zip
 get_file "$DOWNLOAD_FOLDER" "https://download.ericzimmermanstools.com/SrumECmd.zip"
 get_file "$DOWNLOAD_FOLDER" "https://download.ericzimmermanstools.com/SumECmd.zip"
 get_file "$DOWNLOAD_FOLDER" "https://download.ericzimmermanstools.com/iisGeolocate.zip"
+get_file "$DOWNLOAD_FOLDER" "https://download.ericzimmermanstools.com/net6/TimelineExplorer.zip"
 
 echo "-- download Sysinternals Tools --"
 get_file "$DOWNLOAD_FOLDER" "https://live.sysinternals.com/tools/autorunsc64.exe"
@@ -155,6 +156,9 @@ get_file "$DOWNLOAD_FOLDER" "https://live.sysinternals.com/tools/procexp64.exe"
 get_file "$DOWNLOAD_FOLDER" "https://live.sysinternals.com/tools/sigcheck64.exe"
 get_file "$DOWNLOAD_FOLDER" "https://live.sysinternals.com/tools/strings64.exe"
 get_file "$DOWNLOAD_FOLDER" "https://live.sysinternals.com/tools/Sysmon64.exe"
+
+echo "-- download ForensicTools Kit --"
+get_latest_github_release "$DOWNLOAD_FOLDER" "cristianzsh/forensictools" "forensictools.*setup\\.exe$"
 
 echo "-- download PingCastle --"
 get_latest_github_release "$DOWNLOAD_FOLDER" "netwrix/pingcastle" "ping.*\\.zip$"
