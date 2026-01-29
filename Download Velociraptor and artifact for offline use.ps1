@@ -18,6 +18,23 @@ $outputFile = Join-Path -Path $outputFolder -ChildPath $asset.name
 Invoke-WebRequest -Uri $source -Out $outputFile
 }
 
+function GetFileFromPage {
+param ($outputFolder, $pageUrl, $filenamePattern)
+$response = Invoke-WebRequest -Uri $pageUrl -UseBasicParsing
+$link = $response.Links | Where-Object { $_.href -like $filenamePattern } | Select-Object -First 1
+if ($null -eq $link) {
+    Write-Error "No link found matching pattern: $filenamePattern on $pageUrl"
+    return
+}
+$fileUrl = $link.href
+if ($fileUrl -notmatch "^https?://") {
+    $uri = [System.Uri]$pageUrl
+    $fileUrl = "$($uri.Scheme)://$($uri.Host)$fileUrl"
+}
+$outputFile = Join-Path -Path $outputFolder -ChildPath $(Split-Path -Path $fileUrl -Leaf)
+Invoke-WebRequest -Uri $fileUrl -Out $outputFile
+}
+
 function GetFile{
 param ($outputFolder, $source)
 $outputFile = Join-Path -Path $outputFolder -ChildPath $(Split-Path -Path $source -Leaf)
@@ -46,6 +63,49 @@ Rename-Item -Path $tempFile -NewName $finalName
 $downloadFolder = Join-Path -Path $destinationFolder -ChildPath "VelociraptorPlus"
 if (-not (Test-Path $downloadFolder)) {
     New-Item -ItemType Directory -Path $downloadFolder -Force
+}
+
+# Ask user about optional large downloads
+$downloadBento = $false
+$downloadForensicTools = $false
+
+$answerBento = Read-Host "Download Bento Toolkit? (y/n)"
+if ($answerBento -eq "y") {
+    $existingBento = Get-ChildItem -Path $downloadFolder -Filter "bento_*" -ErrorAction SilentlyContinue | Sort-Object Name -Descending | Select-Object -First 1
+    if ($existingBento) {
+        Write-Host "  On disk: $($existingBento.Name)" -ForegroundColor Cyan
+    } else {
+        Write-Host "  On disk: not found" -ForegroundColor Yellow
+    }
+    $pageResponse = Invoke-WebRequest -Uri "https://tsurugi-linux.org/mirrors/mirror1.php" -UseBasicParsing
+    $bentoLink = $pageResponse.Links | Where-Object { $_.href -like "*bento_*" } | Select-Object -First 1
+    if ($bentoLink) {
+        $bentoFileName = Split-Path -Path $bentoLink.href -Leaf
+        Write-Host "  Latest:  $bentoFileName" -ForegroundColor Green
+    } else {
+        Write-Host "  Latest:  could not determine" -ForegroundColor Yellow
+    }
+    $confirmBento = Read-Host "  Proceed with download? (y/n)"
+    if ($confirmBento -eq "y") { $downloadBento = $true }
+}
+
+$answerForensicTools = Read-Host "Download ForensicTools Kit? (y/n)"
+if ($answerForensicTools -eq "y") {
+    $existingFT = Get-ChildItem -Path $downloadFolder -Filter "forensictools_*" -ErrorAction SilentlyContinue | Sort-Object Name -Descending | Select-Object -First 1
+    if ($existingFT) {
+        Write-Host "  On disk: $($existingFT.Name)" -ForegroundColor Cyan
+    } else {
+        Write-Host "  On disk: not found" -ForegroundColor Yellow
+    }
+    $ftRelease = (Invoke-RestMethod -Method GET -Uri "https://api.github.com/repos/cristianzsh/forensictools/releases")[0]
+    $ftAsset = $ftRelease.assets | Where-Object name -like "forensictools*setup.exe" | Select-Object -First 1
+    if ($ftAsset) {
+        Write-Host "  Latest:  $($ftAsset.name)" -ForegroundColor Green
+    } else {
+        Write-Host "  Latest:  could not determine" -ForegroundColor Yellow
+    }
+    $confirmFT = Read-Host "  Proceed with download? (y/n)"
+    if ($confirmFT -eq "y") { $downloadForensicTools = $true }
 }
 
 echo "-- download latest velociraptor exe and msi --"
@@ -87,8 +147,8 @@ $hayabusaExe = Get-Item "$downloadFolder\Hayabusa\hayabusa-*-win-x64.exe" | Sele
 & $hayabusaExe.FullName update-rules
 Compress-Archive "$downloadFolder\Hayabusa\*" -DestinationPath "$downloadFolder\hayabusaUpdated.zip"
 
-echo "-- download latest Loki --"
-GetLatestGithubRelease $downloadFolder "Neo23x0/Loki" "loki*.zip"
+echo "-- download latest Loki-RS --"
+GetLatestGithubRelease $downloadFolder "Neo23x0/Loki-RS" "loki-windows-x86_64*.zip"
 
 echo "-- download Thor and Adding License --"
 Invoke-WebRequest "https://update1.nextron-systems.com/getupdate.php?product=thor10lite-win" -OutFile "$downloadFolder\thor.zip"
@@ -175,8 +235,15 @@ GetFile $downloadFolder "https://live.sysinternals.com/tools/sigcheck64.exe"
 GetFile $downloadFolder "https://live.sysinternals.com/tools/strings64.exe"
 GetFile $downloadFolder "https://live.sysinternals.com/tools/Sysmon64.exe"
 
-echo "-- download ForensicTools Kit --"
-GetLatestGithubRelease $downloadFolder "cristianzsh/forensictools" "forensictools*setup.exe"
+if ($downloadBento) {
+    echo "-- download Bento Toolkit --"
+    GetFileFromPage $downloadFolder "https://tsurugi-linux.org/mirrors/mirror1.php" "*bento_*"
+}
+
+if ($downloadForensicTools) {
+    echo "-- download ForensicTools Kit --"
+    GetLatestGithubRelease $downloadFolder "cristianzsh/forensictools" "forensictools*setup.exe"
+}
 
 echo "-- download PingCastle --"
 GetLatestGithubRelease $downloadFolder "netwrix/pingcastle" "ping*.zip"

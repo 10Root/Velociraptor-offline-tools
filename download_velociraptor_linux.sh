@@ -31,18 +31,81 @@ get_latest_github_release() {
     curl -L -o "$output_folder/$name" "$url"
 }
 
+# Function to download a file matching a pattern from a web page
+get_file_from_page() {
+    local output_folder="$1"
+    local page_url="$2"
+    local pattern="$3"
+
+    local file_url=$(curl -s "$page_url" | grep -oP 'href="\K[^"]*' | grep -E "$pattern" | head -1)
+
+    if [ -z "$file_url" ]; then
+        echo "ERROR: No link found matching pattern: $pattern on $page_url"
+        return 1
+    fi
+
+    # Handle relative URLs
+    if [[ ! "$file_url" =~ ^https?:// ]]; then
+        local base_url=$(echo "$page_url" | grep -oP '^https?://[^/]+')
+        file_url="${base_url}${file_url}"
+    fi
+
+    local filename=$(basename "$file_url" | cut -d'?' -f1)
+    echo "Downloading $filename..."
+    curl -L -o "$output_folder/$filename" "$file_url"
+}
+
 # Function to download a file
 get_file() {
     local output_folder="$1"
     local url="$2"
     local filename=$(basename "$url" | cut -d'?' -f1)
-
     echo "Downloading $filename..."
     curl -L -o "$output_folder/$filename" "$url"
 }
 
 echo "Download folder: $DOWNLOAD_FOLDER"
 echo ""
+
+# Ask user about optional large downloads
+DO_DOWNLOAD_BENTO=false
+DO_DOWNLOAD_FORENSICTOOLS=false
+
+read -p "Download Bento Toolkit? (y/n): " ANSWER_BENTO
+if [ "$ANSWER_BENTO" = "y" ]; then
+    existing_bento=$(ls -1 "$DOWNLOAD_FOLDER"/bento_* 2>/dev/null | sort -V | tail -1)
+    if [ -n "$existing_bento" ]; then
+        echo "  On disk: $(basename "$existing_bento")"
+    else
+        echo "  On disk: not found"
+    fi
+    latest_bento=$(curl -s "https://tsurugi-linux.org/mirrors/mirror1.php" | grep -oP 'href="\K[^"]*' | grep -E "bento_.*\.7z" | head -1)
+    if [ -n "$latest_bento" ]; then
+        echo "  Latest:  $(basename "$latest_bento")"
+    else
+        echo "  Latest:  could not determine"
+    fi
+    read -p "  Proceed with download? (y/n): " CONFIRM_BENTO
+    if [ "$CONFIRM_BENTO" = "y" ]; then DO_DOWNLOAD_BENTO=true; fi
+fi
+
+read -p "Download ForensicTools Kit? (y/n): " ANSWER_FORENSICTOOLS
+if [ "$ANSWER_FORENSICTOOLS" = "y" ]; then
+    existing_ft=$(ls -1 "$DOWNLOAD_FOLDER"/forensictools_* 2>/dev/null | sort -V | tail -1)
+    if [ -n "$existing_ft" ]; then
+        echo "  On disk: $(basename "$existing_ft")"
+    else
+        echo "  On disk: not found"
+    fi
+    latest_ft=$(curl -s "https://api.github.com/repos/cristianzsh/forensictools/releases" | jq -r '.[0].assets[] | select(.name | test("forensictools.*setup\\.exe$")) | .name' | head -1)
+    if [ -n "$latest_ft" ]; then
+        echo "  Latest:  $latest_ft"
+    else
+        echo "  Latest:  could not determine"
+    fi
+    read -p "  Proceed with download? (y/n): " CONFIRM_FT
+    if [ "$CONFIRM_FT" = "y" ]; then DO_DOWNLOAD_FORENSICTOOLS=true; fi
+fi
 
 echo "-- download latest velociraptor exe and msi --"
 get_latest_github_release "$DOWNLOAD_FOLDER" "Velocidex/velociraptor" ".*windows-amd64\\.exe$"
@@ -76,8 +139,8 @@ echo "-- download latest Hayabusa --"
 get_latest_github_release "$DOWNLOAD_FOLDER" "Yamato-Security/hayabusa" "hayabusa-.*-win-x64\\.zip$"
 get_latest_github_release "$DOWNLOAD_FOLDER" "Yamato-Security/hayabusa" "hayabusa-.*-win-x64-live-response\\.zip$"
 
-echo "-- download latest Loki --"
-get_latest_github_release "$DOWNLOAD_FOLDER" "Neo23x0/Loki" "loki.*\\.zip$"
+echo "-- download latest Loki-RS --"
+get_latest_github_release "$DOWNLOAD_FOLDER" "Neo23x0/Loki-RS" "loki-linux-x86_64.*\\.tar\\.gz$"
 
 echo "-- download Thor --"
 curl -L -o "$DOWNLOAD_FOLDER/thor.zip" "https://update1.nextron-systems.com/getupdate.php?product=thor10lite-win"
@@ -157,8 +220,15 @@ get_file "$DOWNLOAD_FOLDER" "https://live.sysinternals.com/tools/sigcheck64.exe"
 get_file "$DOWNLOAD_FOLDER" "https://live.sysinternals.com/tools/strings64.exe"
 get_file "$DOWNLOAD_FOLDER" "https://live.sysinternals.com/tools/Sysmon64.exe"
 
-echo "-- download ForensicTools Kit --"
-get_latest_github_release "$DOWNLOAD_FOLDER" "cristianzsh/forensictools" "forensictools.*setup\\.exe$"
+if $DO_DOWNLOAD_BENTO; then
+    echo "-- download Bento Toolkit --"
+    get_file_from_page "$DOWNLOAD_FOLDER" "https://tsurugi-linux.org/mirrors/mirror1.php" "bento_.*\.7z"
+fi
+
+if $DO_DOWNLOAD_FORENSICTOOLS; then
+    echo "-- download ForensicTools Kit --"
+    get_latest_github_release "$DOWNLOAD_FOLDER" "cristianzsh/forensictools" "forensictools.*setup\\.exe$"
+fi
 
 echo "-- download PingCastle --"
 get_latest_github_release "$DOWNLOAD_FOLDER" "netwrix/pingcastle" "ping.*\\.zip$"
